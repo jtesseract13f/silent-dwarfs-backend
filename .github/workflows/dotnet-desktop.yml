@@ -1,0 +1,26 @@
+name: Simple Deploy
+
+on:
+  push:
+    branches: [ master ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Deploy via SSH
+      uses: appleboy/ssh-action@v0.1.7
+      with:
+        host: ${{ secrets.SSH_HOST }}
+        username: ${{ secrets.SSH_USERNAME }}
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        script: |
+          cd ~/apps/silent-dwarfs-backend
+          git pull origin master
+          dotnet restore
+          dotnet build --configuration Release
+          sudo systemctl stop silent-dwarfs-backend.service || true
+          dotnet publish --configuration Release --output ./published
+          sudo systemctl start silent-dwarfs-backend.service
