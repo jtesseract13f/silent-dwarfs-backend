@@ -1,26 +1,61 @@
-name: Simple Deploy
+name: Build and Deploy
 
 on:
   push:
     branches: [ master ]
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
     
-    - name: Deploy via SSH
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: '8.0.x'
+        
+    - name: Restore dependencies
+      run: dotnet restore
+      
+    - name: Build
+      run: dotnet build --configuration Release --no-restore
+      
+    - name: Publish
+      run: dotnet publish --configuration Release --no-build --output ./publish
+      
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: backend-app
+        path: publish/
+        
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+    - name: Download artifacts
+      uses: actions/download-artifact@v3
+      with:
+        name: backend-app
+        path: ./publish
+        
+    - name: Deploy to server
+      uses: appleboy/scp-action@v0.1.3
+      with:
+        host: ${{ secrets.SSH_HOST }}
+        username: ${{ secrets.SSH_USERNAME }}
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        source: "publish/*"
+        target: "~/apps/silent-dwarfs-backend/published"
+        
+    - name: Restart service
       uses: appleboy/ssh-action@v0.1.7
       with:
         host: ${{ secrets.SSH_HOST }}
         username: ${{ secrets.SSH_USERNAME }}
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         script: |
-          cd ~/apps/silent-dwarfs-backend
-          git pull origin master
-          dotnet restore
-          dotnet build --configuration Release
           sudo systemctl stop silent-dwarfs-backend.service || true
-          dotnet publish --configuration Release --output ./published
           sudo systemctl start silent-dwarfs-backend.service
+          sudo systemctl status silent-dwarfs-backend.service
