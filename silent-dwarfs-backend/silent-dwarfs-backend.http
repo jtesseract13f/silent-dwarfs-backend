@@ -1,0 +1,6 @@
+@silent_dwarfs_backend_HostAddress = http://localhost:5025
+
+GET {{silent_dwarfs_backend_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
